@@ -10,9 +10,19 @@ def main():
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     connection_object, addr = server_socket.accept() # wait for client
 
-    data = connection_object.recv(2046)
+    while True:
+        print("Client", addr, "has connected")
+        print("Waiting for request")
+        data = connection_object.recv(2046)
+        if not data:
+            print("Client Disconnected")
+            break
 
-    connection_object.sendall(b"+PONG\r\n")
+        print("Client data" ,data)
+        connection_object.sendall(b"+PONG\r\n")
+        print("Request Processed")
+
+    connection_object.close()
 
 
 if __name__ == "__main__":
