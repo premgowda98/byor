@@ -11,7 +11,6 @@ def concurrent_request(conn_object, addr):
             break
 
         print("Client data recieved" ,data)
-        time.sleep(5)
         conn_object.sendall(b"+PONG\r\n")
         print("Request Processed\n")
 
