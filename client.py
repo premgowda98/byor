@@ -12,12 +12,12 @@ client_socket.connect((HOST, PORT))
 
 for i in range(1,3):
     # Send a request message to the server
-    message = f"Message No: {i}"
+    message = f"*2\r\n$4\r\nECHO\r\n$5\r\ngowda\r\n"
     client_socket.sendall(message.encode())
 
     # Receive the response from the server
     response = client_socket.recv(1024)
-    print(f"Received from server: {response.decode()}")
+    print(f"Received from server: {response}")
 
 # Close the client connection
 client_socket.close()

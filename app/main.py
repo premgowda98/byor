@@ -1,6 +1,7 @@
 import socket  # noqa: F401
 import threading
-import time
+
+from redis.protocol import RedisProtocolParser
 
 def concurrent_request(conn_object, addr):
     while True:
@@ -10,8 +11,10 @@ def concurrent_request(conn_object, addr):
             print("Client Disconnected")
             break
 
-        print("Client data recieved" ,data)
-        conn_object.sendall(b"+PONG\r\n")
+        rpp = RedisProtocolParser(data.decode())
+        redis_response = rpp.execute()
+
+        conn_object.sendall(redis_response.encode())
         print("Request Processed\n")
 
     conn_object.close()
