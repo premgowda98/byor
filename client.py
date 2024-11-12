@@ -15,9 +15,11 @@ messages = [
     f"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n", # echo hey
     f"*1\r\n$4\r\nPING\r\n", # ping
     f"*2\r\n$3\r\nGET\r\n$10\r\nstrawberry\r\n", # get strawberry
-    f"*2\r\n$3\r\nGET\r\n$10\r\nname\r\n", # get name
-    f"*3\r\n$3\r\nSET\r\n$10\r\nname\r\n$5\r\nprem\r\n", # set name prem
-    f"*2\r\n$3\r\nGET\r\n$10\r\nname\r\n", # get name
+    f"*2\r\n$3\r\nGET\r\n$4\r\nname\r\n", # get name
+    f"*3\r\n$3\r\nSET\r\n$4\r\nname\r\n$5\r\nprem\r\n", # set name prem
+    f"*2\r\n$3\r\nGET\r\n$4\r\nname\r\n", # get name
+    # f"*3\r\n$3\r\nSET\r\n$7\r\nsession\r\n$12\r\nertayrytjyfj\r\n$2\r\nPX\r\n$4\r\n9000\r\n", # set session for 5s
+    f"*2\r\n$3\r\nGET\r\n$7\r\nsession\r\n", # get name
 ]
 
 for message in messages:

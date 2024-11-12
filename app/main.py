@@ -47,7 +47,7 @@ class RedisProtocolParser:
             return self.ping()
         
         if command == RedisCommandLists.SET:
-            (ttl_type, ttl) = (args[2], args[3]) if len(args)>2 else (None, "")
+            (ttl_type, ttl) = (args[2], args[3]) if len(args)>2 else ("", None)
             return self.set(args[0], args[1], ttl=ttl, ttl_type=ttl_type)
         
         if command == RedisCommandLists.GET:
@@ -84,7 +84,7 @@ class RedisProtocolParser:
         
         if ttl_type.upper() == RedisCommandLists.PX:
             # px in milliseconds convert to seconds
-            threading.Timer(ttl/1000, self.invalidate_key, args=[key])
+            threading.Timer(int(ttl)/1000, self.invalidate_key, args=[key]).start()
 
         return self._encode(resp)
     
