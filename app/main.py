@@ -1,6 +1,8 @@
 import socket  # noqa: F401
 import threading
 
+class RedisData:
+    data = {}
 
 class RedisDataType:
     string = "+"
@@ -15,6 +17,8 @@ class RedisDataType:
 class RedisCommandLists:
     ECHO = "ECHO"
     PING = "PING"
+    SET = "SET"
+    GET = "GET"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -28,7 +32,7 @@ class RedisProtocolParser:
         command = self.commands[2].upper()
         args = []
 
-        for i in range(4, self.len_command, 1):
+        for i in range(4, self.len_command, 2):
             args.append(self.commands[i])
 
         return command, args
@@ -40,6 +44,12 @@ class RedisProtocolParser:
         
         if command == RedisCommandLists.PING:
             return self.ping()
+        
+        if command == RedisCommandLists.SET:
+            return self.set(args[0], args[1])
+        
+        if command == RedisCommandLists.GET:
+            return self.get(args[0])
         
         return self.error("Invalid")
 
@@ -53,10 +63,33 @@ class RedisProtocolParser:
 
         return self._encode(resp)
     
+    def null(self):
+        resp = [f"{RedisDataType.b_string}-1", ""]
+
+        return self._encode(resp)
+    
     def ping(self):
         resp = [f"{RedisDataType.string}PONG", ""]
 
         return self._encode(resp)
+    
+    def set(self, key, val):
+        RedisData.data[key] = val
+        resp = [f"{RedisDataType.string}OK", ""]
+
+        return self._encode(resp)
+    
+    def get(self, key):
+
+        val = RedisData.data.get(key, None)
+
+        if not val:
+            return self.null()
+        
+        resp = [f"{RedisDataType.b_string}{str(len(val))}", val, ""]
+
+        return self._encode(resp)
+
 
 
 def concurrent_request(conn_object, addr):
