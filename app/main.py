@@ -62,7 +62,7 @@ def concurrent_request(conn_object, addr):
         rpp = RedisProtocolParser(data.decode())
         redis_response = rpp.execute()
 
-        conn_object.sendall(redis_response)
+        conn_object.sendall(redis_response.encode())
         print("Request Processed\n")
 
     conn_object.close()
