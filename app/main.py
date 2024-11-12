@@ -1,21 +1,20 @@
 import socket  # noqa: F401
 import threading
 
-# from redis.protocol import RedisProtocolParser
-
 
 class RedisDataType:
-    string = '+'
-    error = '-'
-    integer = ':'
-    b_string = '$'
-    array = '*'
-    null = '_'
-    boolean = '#'
-    delimeter = '\r\n'
+    string = "+"
+    error = "-"
+    integer = ":"
+    b_string = "$"
+    array = "*"
+    null = "_"
+    boolean = "#"
+    delimeter = "\r\n"
 
 class RedisCommandLists:
-    ECHO = 'ECHO'
+    ECHO = "ECHO"
+    PING = "PING"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -39,6 +38,9 @@ class RedisProtocolParser:
         if command == RedisCommandLists.ECHO:
             return self.echo(args[0])
         
+        if command == RedisCommandLists.PING:
+            return self.ping()
+        
         return self.error("Invalid")
 
     def echo(self, val) -> str:
@@ -50,6 +52,12 @@ class RedisProtocolParser:
         resp = [f"{RedisDataType.error} {message}", ""]
 
         return self._encode(resp)
+    
+    def ping(self):
+        resp = [f"{RedisDataType.string}PONG", ""]
+
+        return self._encode(resp)
+
 
 def concurrent_request(conn_object, addr):
     while True:
