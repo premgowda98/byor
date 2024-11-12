@@ -19,6 +19,7 @@ class RedisCommandLists:
     PING = "PING"
     SET = "SET"
     GET = "GET"
+    PX = "PX"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -46,7 +47,8 @@ class RedisProtocolParser:
             return self.ping()
         
         if command == RedisCommandLists.SET:
-            return self.set(args[0], args[1])
+            (ttl_type, ttl) = (args[2], args[3]) if len(args)>2 else (None, "")
+            return self.set(args[0], args[1], ttl=ttl, ttl_type=ttl_type)
         
         if command == RedisCommandLists.GET:
             return self.get(args[0])
@@ -73,9 +75,16 @@ class RedisProtocolParser:
 
         return self._encode(resp)
     
-    def set(self, key, val):
+    def invalidate_key(self, key):
+        del RedisData.data[key]
+    
+    def set(self, key, val, ttl=None, ttl_type=""):
         RedisData.data[key] = val
         resp = [f"{RedisDataType.string}OK", ""]
+        
+        if ttl_type.upper() == RedisCommandLists.PX:
+            # px in milliseconds convert to seconds
+            threading.Timer(ttl/1000, self.invalidate_key, args=[key])
 
         return self._encode(resp)
     

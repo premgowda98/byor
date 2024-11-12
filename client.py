@@ -18,7 +18,6 @@ messages = [
     f"*2\r\n$3\r\nGET\r\n$10\r\nname\r\n", # get name
     f"*3\r\n$3\r\nSET\r\n$10\r\nname\r\n$5\r\nprem\r\n", # set name prem
     f"*2\r\n$3\r\nGET\r\n$10\r\nname\r\n", # get name
-
 ]
 
 for message in messages:
