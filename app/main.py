@@ -1,5 +1,9 @@
 import socket  # noqa: F401
 import threading
+import argparse
+import configparser
+
+config = configparser.ConfigParser()
 
 class RedisData:
     data = {}
@@ -20,6 +24,7 @@ class RedisCommandLists:
     SET = "SET"
     GET = "GET"
     PX = "PX"
+    CONFIG = "CONFIG"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -52,6 +57,9 @@ class RedisProtocolParser:
         
         if command == RedisCommandLists.GET:
             return self.get(args[0])
+        
+        if command == RedisCommandLists.CONFIG:
+            return self.config(args)
         
         return self.error("Invalid")
 
@@ -98,7 +106,18 @@ class RedisProtocolParser:
         resp = [f"{RedisDataType.b_string}{str(len(val))}", val, ""]
 
         return self._encode(resp)
+    
+    def config(self, args):
 
+        key = args[1]
+
+        if args[0].upper() == RedisCommandLists.GET:
+            val = config.get('default', key)
+
+
+        resp = [f"{RedisDataType.array}2", f"{RedisDataType.b_string}{len(key)}", key, f"{RedisDataType.b_string}{len(val)}", val, ""]
+
+        return self._encode(resp)
 
 
 def concurrent_request(conn_object, addr):
@@ -134,4 +153,18 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='BYOR args')
+    parser.add_argument('--dir', help="file path of config file")
+    parser.add_argument("--dbfilename", help="filename of the config")
+
+    args = parser.parse_args()
+    
+    config.add_section('default')
+
+    if args.dir:
+        config.set('default', 'dir', args.dir)
+
+    if args.dbfilename:
+        config.set('default', 'dbfilename', args.dbfilename)
+
     main()
