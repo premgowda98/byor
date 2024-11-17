@@ -307,13 +307,13 @@ def concurrent_request(conn_object, addr):
     conn_object.close()
 
 
-def main():
+def main(port):
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!")
 
     # Uncomment this to pass the first stage
     #
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    server_socket = socket.create_server(("localhost", port), reuse_port=True)
 
     while True:
         connection_object, addr = server_socket.accept() # wait for client
@@ -326,6 +326,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='BYOR args')
     parser.add_argument('--dir', help="file path of config file")
     parser.add_argument("--dbfilename", help="filename of the config")
+    parser.add_argument("--port", help="filename of the config", type=int, default=6379)
 
     args = parser.parse_args()
     
@@ -333,6 +334,7 @@ if __name__ == "__main__":
 
     dir = args.dir
     db_file = args.dbfilename
+    port = args.port
 
     if dir:
         config.set('default', 'dir', dir)
@@ -368,4 +370,4 @@ if __name__ == "__main__":
                     else:
                         del RedisData.data[key]
 
-    main()
+    main(port)
