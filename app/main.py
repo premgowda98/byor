@@ -4,6 +4,7 @@ import argparse
 import configparser
 from pathlib import Path
 import re
+import time
 
 config = configparser.ConfigParser()
 
@@ -25,7 +26,8 @@ class RedisCommandLists:
     PING = "PING"
     SET = "SET"
     GET = "GET"
-    PX = "PX"
+    PX = "PX" # milliseconds
+    EX = "EX" # seconds
     CONFIG = "CONFIG"
     KEYS = "KEYS"
 
@@ -80,6 +82,7 @@ class RedisProtocolParser:
         return self._encode(resp)
     
     def null(self):
+        print("Not found")
         resp = [f"{RedisDataType.b_string}-1", ""]
 
         return self._encode(resp)
@@ -89,6 +92,7 @@ class RedisProtocolParser:
 
         return self._encode(resp)
     
+    @classmethod
     def invalidate_key(self, key):
         del RedisData.data[key]
     
@@ -99,6 +103,8 @@ class RedisProtocolParser:
         if ttl_type.upper() == RedisCommandLists.PX:
             # px in milliseconds convert to seconds
             threading.Timer(int(ttl)/1000, self.invalidate_key, args=[key]).start()
+        elif ttl_type.upper() == RedisCommandLists.EX:
+            threading.Timer(ttl, self.invalidate_key, args=[key]).start()
 
         return self._encode(resp)
     
@@ -159,8 +165,9 @@ def hex_to_decimal(hex_val):
 def hex_to_num(hex_val):
     return int(hex_val, 16)
 
-def convert_to_b_endian(binary_val):
-    return binary_val[::-1]
+def convert_to_b_endian(hex_val):
+    hex_val = [hex_val[i:i+2] for i in range(0, len(hex_val), 2)]
+    return "".join(hex_val[::-1])
 
 def binary_to_num(binary_val):
     return int(binary_val, 2)
@@ -232,24 +239,29 @@ class RDBParser:
         num_keys_with_expiry = self.hash_table[pointer: pointer+2]
         pointer+=2
 
-        
+        print(f"There are total of {num_keys} keys with {num_keys_with_expiry} has expiry")        
+
         while pointer <= len(self.hash_table)-2:
             command = self.hash_table[pointer:pointer+2]
             pointer+=2
 
             temp = {}
 
+            expiry = None
+            expiry_type = None
+
             if command == 'fc':
-                time_val = self.hash_table[pointer:pointer+self.FC['length']*2]
+                expiry = self.hash_table[pointer:pointer+self.FC['length']*2]
                 pointer = pointer+self.FC['length']*2
-                temp['expiry'] = time_val
+                expiry_type = 'PX'
 
                 command = '00'
                 pointer+=2
                 
             if command == 'fd':
+                expiry = self.hash_table[pointer:pointer+self.FD['length']*2]
                 pointer = pointer+self.FD['length']*2
-                temp['expiry'] = 0
+                expiry_type = 'EX'
 
                 command = '00'
                 pointer+=2
@@ -265,7 +277,11 @@ class RDBParser:
                 pointer+=2
                 val = hex_to_string(self.hash_table[pointer:pointer+size_to_read*2])
                 pointer=pointer+size_to_read*2
-                temp[key] = val
+                temp[key] = {
+                    'value': val, 
+                    "expiry": expiry, 
+                    "expiry_type": expiry_type
+                    }
 
             all_keys_data.append(temp)
             del temp
@@ -333,6 +349,23 @@ if __name__ == "__main__":
             data = rdb.read()
             for item in data:
                 for key, val in item.items():
-                    if key not in 'expiry':
-                        RedisData.data[key] = val
+                    RedisData.data[key] = val['value']
+                    
+                    if not val['expiry']:
+                        continue
+
+                    # time is in little-endian
+                    big_endian_hex_val = convert_to_b_endian(val['expiry'])
+                    unix_time_stamp = hex_to_num(big_endian_hex_val)
+                    if val['expiry_type'] == RedisCommandLists.PX:
+                        in_seconds_unix = unix_time_stamp/1000
+                        in_seconds = int(in_seconds_unix - time.time())
+                    elif val['expiry_type']  == RedisCommandLists.EX:
+                        in_seconds = int(unix_time_stamp - time.time())
+
+                    if in_seconds > 0 :
+                        threading.Timer(in_seconds, RedisProtocolParser.invalidate_key, args=[key]).start()
+                    else:
+                        del RedisData.data[key]
+
     main()
