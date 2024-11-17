@@ -20,7 +20,9 @@ messages = [
     f"*2\r\n$3\r\nGET\r\n$4\r\nname\r\n", # get name
     # f"*3\r\n$3\r\nSET\r\n$7\r\nsession\r\n$12\r\nertayrytjyfj\r\n$2\r\nPX\r\n$4\r\n9000\r\n", # set session for 5s
     f"*2\r\n$3\r\nGET\r\n$7\r\nsession\r\n", # get name
-    f"*3\r\n$5\r\nCONFIG\r\n$3\r\nGET\r\n$3\r\ndir\r\n" # config get dir
+    f"*3\r\n$5\r\nCONFIG\r\n$3\r\nGET\r\n$3\r\ndir\r\n", # config get dir
+    f"*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n", # get foo
+    f"*2\r\n$4\r\nKEYS\r\n$1\r\n*\r\n", 
 ]
 
 for message in messages:

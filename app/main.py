@@ -2,6 +2,8 @@ import socket  # noqa: F401
 import threading
 import argparse
 import configparser
+from pathlib import Path
+import re
 
 config = configparser.ConfigParser()
 
@@ -25,6 +27,7 @@ class RedisCommandLists:
     GET = "GET"
     PX = "PX"
     CONFIG = "CONFIG"
+    KEYS = "KEYS"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -60,6 +63,9 @@ class RedisProtocolParser:
         
         if command == RedisCommandLists.CONFIG:
             return self.config(args)
+        
+        if command == RedisCommandLists.KEYS:
+            return self.keys(args)
         
         return self.error("Invalid")
 
@@ -118,6 +124,154 @@ class RedisProtocolParser:
         resp = [f"{RedisDataType.array}2", f"{RedisDataType.b_string}{len(key)}", key, f"{RedisDataType.b_string}{len(val)}", val, ""]
 
         return self._encode(resp)
+    
+    def keys(self, args):
+
+        pattern = args[0]
+
+        if pattern == "*":
+            all_keys = list(RedisData.data.keys())
+
+        
+
+        resp = [f"{RedisDataType.array}{len(all_keys)}"]
+        for key in all_keys:
+            resp.append(f"{RedisDataType.b_string}{len(key)}")
+            resp.append(key)
+
+        resp.append('')
+
+        return self._encode(resp)
+
+
+    
+'''
+A byte consists of 8 bits, and each hex digit represents 4 bits. Therefore, two hex digits 
+(two characters) are needed to represent a full byte.
+'''
+
+def hex_to_decimal(hex_val):
+    integer_val = int(hex_val, 16)
+    binary_val = bin(integer_val)[2:]
+
+    return binary_val
+
+def hex_to_num(hex_val):
+    return int(hex_val, 16)
+
+def convert_to_b_endian(binary_val):
+    return binary_val[::-1]
+
+def binary_to_num(binary_val):
+    return int(binary_val, 2)
+
+def hex_to_string(hex_val):
+    bytes_val = bytes.fromhex(hex_val)
+    string = bytes_val.decode('utf-8')
+    return string
+
+
+class RDBParser:
+    DATABSE_SECTION = 'fe'
+    HASH_TABLE = 'fb'
+    LITTLE_ENDIAN = 'little_endian'
+    BIG_ENDIAN = 'big_endian'
+    STRING = 'string'
+    FC = {'length': 8, "type": LITTLE_ENDIAN}
+    FD = {'length': 4, "type": LITTLE_ENDIAN}
+    BYTE_TO_HEX = 2
+
+    encoding = {
+        'fe': HASH_TABLE,
+        '00' : STRING,
+        'fc' : FC,
+        'fd' : FD
+    }
+
+
+    def __init__(self, rdb_path):
+        self.rdb_path = rdb_path
+        self._read_content()
+        self._get_hashtable()
+
+    def _read_content(self):
+        with open(self.rdb_path, 'rb') as rdb:
+            self.data = rdb.read().hex()
+
+    def _get_hashtable(self):
+        '''
+        Includes only hash_table contents
+        '''
+        self.hash_table = re.search(r'fb[a-zA-Z0-9]*ff', self.data).group()[2:-2]
+        return self.hash_table
+    
+    def get_total_keys(self):
+        pass
+
+    def size_deccoding(self):
+        '''
+        The first 2 bits are imp
+        if first 2 bit is 00 , then next 6 bit are size
+        if first 2 bit is 01 then next 14 bits are size
+        if first 2 bit is 10 then neglect 6it of 1st byte and consider rest 4 byte as number
+        '''
+        pass
+
+    def string_decoding(self):
+        '''
+        String encoding starts with size encoding
+        '''
+        pass
+
+    def read(self):
+        pointer = 0
+        all_keys_data = []
+
+        num_keys = self.hash_table[pointer: pointer+2]
+        pointer+=2
+        num_keys_with_expiry = self.hash_table[pointer: pointer+2]
+        pointer+=2
+
+        
+        while pointer <= len(self.hash_table)-2:
+            command = self.hash_table[pointer:pointer+2]
+            pointer+=2
+
+            temp = {}
+
+            if command == 'fc':
+                time_val = self.hash_table[pointer:pointer+self.FC['length']*2]
+                pointer = pointer+self.FC['length']*2
+                temp['expiry'] = time_val
+
+                command = '00'
+                pointer+=2
+                
+            if command == 'fd':
+                pointer = pointer+self.FD['length']*2
+                temp['expiry'] = 0
+
+                command = '00'
+                pointer+=2
+
+            if command == '00':
+
+                size_to_read = hex_to_num(self.hash_table[pointer:pointer+2])
+                pointer+=2
+                key = hex_to_string(self.hash_table[pointer:pointer+size_to_read*2])
+                pointer=pointer+size_to_read*2
+
+                size_to_read = hex_to_num(self.hash_table[pointer:pointer+2])
+                pointer+=2
+                val = hex_to_string(self.hash_table[pointer:pointer+size_to_read*2])
+                pointer=pointer+size_to_read*2
+                temp[key] = val
+
+            all_keys_data.append(temp)
+            del temp
+        
+        return all_keys_data
+
 
 
 def concurrent_request(conn_object, addr):
@@ -161,10 +315,24 @@ if __name__ == "__main__":
     
     config.add_section('default')
 
-    if args.dir:
-        config.set('default', 'dir', args.dir)
+    dir = args.dir
+    db_file = args.dbfilename
 
-    if args.dbfilename:
-        config.set('default', 'dbfilename', args.dbfilename)
+    if dir:
+        config.set('default', 'dir', dir)
 
+    if db_file:
+        config.set('default', 'dbfilename', db_file)
+
+    if dir and db_file:
+        path = Path(dir) / db_file
+
+        if Path(path).exists():
+            rdb = RDBParser(path)
+            rdb._get_hashtable()
+            data = rdb.read()
+            for item in data:
+                for key, val in item.items():
+                    if key not in 'expiry':
+                        RedisData.data[key] = val
     main()
