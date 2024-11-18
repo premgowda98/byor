@@ -37,6 +37,7 @@ class RedisCommandLists:
     KEYS = "KEYS"
     INFO = "INFO"
     REPLCONF = "REPLCONF"
+    PSYNC = "PSYNC"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -82,6 +83,9 @@ class RedisProtocolParser:
             
             if command == RedisCommandLists.REPLCONF:
                 return self.okay()
+            
+            if command == RedisCommandLists.PSYNC:
+                return self.sync(args)
             
         except Exception as e:
             print("Something went wrong", e)
@@ -186,6 +190,11 @@ class RedisProtocolParser:
             resp=[f"{RedisDataType.b_string}{total_length}", resp, ""]
 
             return self._encode(resp)
+        
+    def sync(self, args):
+        resp = [f"{RedisDataType.string}FULLRESYNC {RedisData.config['master_replid']} {RedisData.config['master_repl_offset']}", ""]
+
+        return self._encode(resp)
 
     
 
