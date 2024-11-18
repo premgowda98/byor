@@ -22,7 +22,8 @@ messages = [
     f"*2\r\n$3\r\nGET\r\n$7\r\nsession\r\n", # get name
     f"*3\r\n$5\r\nCONFIG\r\n$3\r\nGET\r\n$3\r\ndir\r\n", # config get dir
     f"*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n", # get foo
-    f"*2\r\n$4\r\nKEYS\r\n$1\r\n*\r\n", 
+    f"*2\r\n$4\r\nKEYS\r\n$1\r\n*\r\n", # Keys *
+    f"*2\r\n$3\r\nINFO\r\n$11\r\nreplication\r\n" # info replication
 ]
 
 for message in messages:

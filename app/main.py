@@ -30,6 +30,7 @@ class RedisCommandLists:
     EX = "EX" # seconds
     CONFIG = "CONFIG"
     KEYS = "KEYS"
+    INFO = "INFO"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -49,25 +50,31 @@ class RedisProtocolParser:
         return command, args
 
     def execute(self):
-        command, args = self._decode()
-        if command == RedisCommandLists.ECHO:
-            return self.echo(args[0])
-        
-        if command == RedisCommandLists.PING:
-            return self.ping()
-        
-        if command == RedisCommandLists.SET:
-            (ttl_type, ttl) = (args[2], args[3]) if len(args)>2 else ("", None)
-            return self.set(args[0], args[1], ttl=ttl, ttl_type=ttl_type)
-        
-        if command == RedisCommandLists.GET:
-            return self.get(args[0])
-        
-        if command == RedisCommandLists.CONFIG:
-            return self.config(args)
-        
-        if command == RedisCommandLists.KEYS:
-            return self.keys(args)
+        try:
+            command, args = self._decode()
+            if command == RedisCommandLists.ECHO:
+                return self.echo(args[0])
+            
+            if command == RedisCommandLists.PING:
+                return self.ping()
+            
+            if command == RedisCommandLists.SET:
+                (ttl_type, ttl) = (args[2], args[3]) if len(args)>2 else ("", None)
+                return self.set(args[0], args[1], ttl=ttl, ttl_type=ttl_type)
+            
+            if command == RedisCommandLists.GET:
+                return self.get(args[0])
+            
+            if command == RedisCommandLists.CONFIG:
+                return self.config(args)
+            
+            if command == RedisCommandLists.KEYS:
+                return self.keys(args)
+            
+            if command == RedisCommandLists.INFO:
+                return self.info(args)
+        except Exception as e:
+            print("Something went wrong", e)
         
         return self.error("Invalid")
 
@@ -148,6 +155,17 @@ class RedisProtocolParser:
         resp.append('')
 
         return self._encode(resp)
+    
+    def info(self, args):
+        section = None
+        if args:
+            section = args[0]
+
+        if section == "replication":
+            resp = [f"{RedisDataType.b_string}11", "role:master", ""]
+
+            return self._encode(resp)
+
 
 
     
