@@ -375,12 +375,22 @@ if __name__ == "__main__":
 
     if replicaof:
         replica_ip, replica_port = replicaof.split(" ")
+
+        PING_COMMAND = "*1\r\n$4\r\nPING\r\n"
+        REPLCONF_1=f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${len(str(port))}\r\n{port}\r\n"
+        REPLCONF_2="*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+
+        all_comands = [PING_COMMAND, REPLCONF_1, REPLCONF_2]
+
         # Create a socket object (IPv4, TCP)
         replica_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # Connect to the server
         replica_socket.connect((replica_ip, int(replica_port)))
-        replica_socket.sendall("*1\r\n$4\r\nPING\r\n".encode())
+
+        for command in all_comands:
+            replica_socket.sendall(command.encode())
+            replica_respone = replica_socket.recv(2046)
 
         RedisData.config['role'] = 'slave'
 
