@@ -374,6 +374,14 @@ if __name__ == "__main__":
         config.set('default', 'dbfilename', db_file)
 
     if replicaof:
+        replica_ip, replica_port = replicaof.split(" ")
+        # Create a socket object (IPv4, TCP)
+        replica_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Connect to the server
+        replica_socket.connect((replica_ip, int(replica_port)))
+        replica_socket.sendall("*1\r\n$4\r\nPING\r\n".encode())
+
         RedisData.config['role'] = 'slave'
 
 
