@@ -10,6 +10,9 @@ config = configparser.ConfigParser()
 
 class RedisData:
     data = {}
+    config = {
+        "role": "master"
+    }
 
 class RedisDataType:
     string = "+"
@@ -162,7 +165,7 @@ class RedisProtocolParser:
             section = args[0]
 
         if section == "replication":
-            resp = [f"{RedisDataType.b_string}11", "role:master", ""]
+            resp = [f"{RedisDataType.b_string}{len("role")+len(RedisData.config['role'])+1}", f"role:{RedisData.config['role']}", ""]
 
             return self._encode(resp)
 
@@ -345,6 +348,7 @@ if __name__ == "__main__":
     parser.add_argument('--dir', help="file path of config file")
     parser.add_argument("--dbfilename", help="filename of the config")
     parser.add_argument("--port", help="filename of the config", type=int, default=6379)
+    parser.add_argument("--replicaof", type=str)
 
     args = parser.parse_args()
     
@@ -353,12 +357,17 @@ if __name__ == "__main__":
     dir = args.dir
     db_file = args.dbfilename
     port = args.port
+    replicaof = args.replicaof
 
     if dir:
         config.set('default', 'dir', dir)
 
     if db_file:
         config.set('default', 'dbfilename', db_file)
+
+    if replicaof:
+        RedisData.config['role'] = 'slave'
+
 
     if dir and db_file:
         path = Path(dir) / db_file
