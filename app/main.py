@@ -36,6 +36,7 @@ class RedisCommandLists:
     CONFIG = "CONFIG"
     KEYS = "KEYS"
     INFO = "INFO"
+    REPLCONF = "REPLCONF"
 
 class RedisProtocolParser:
     def __init__(self, data: str):
@@ -78,6 +79,10 @@ class RedisProtocolParser:
             
             if command == RedisCommandLists.INFO:
                 return self.info(args)
+            
+            if command == RedisCommandLists.REPLCONF:
+                return self.okay()
+            
         except Exception as e:
             print("Something went wrong", e)
         
@@ -92,6 +97,12 @@ class RedisProtocolParser:
         resp = [f"{RedisDataType.error} {message}", ""]
 
         return self._encode(resp)
+    
+    def okay(self):
+        resp = [f"{RedisDataType.string}OK", ""]
+
+        return self._encode(resp)
+
     
     def null(self):
         print("Not found")
@@ -110,7 +121,6 @@ class RedisProtocolParser:
     
     def set(self, key, val, ttl=None, ttl_type=""):
         RedisData.data[key] = val
-        resp = [f"{RedisDataType.string}OK", ""]
         
         if ttl_type.upper() == RedisCommandLists.PX:
             # px in milliseconds convert to seconds
@@ -118,7 +128,7 @@ class RedisProtocolParser:
         elif ttl_type.upper() == RedisCommandLists.EX:
             threading.Timer(ttl, self.invalidate_key, args=[key]).start()
 
-        return self._encode(resp)
+        return self.okay()
     
     def get(self, key):
 
