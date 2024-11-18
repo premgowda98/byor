@@ -11,7 +11,9 @@ config = configparser.ConfigParser()
 class RedisData:
     data = {}
     config = {
-        "role": "master"
+        "role": "master",
+        "master_repl_offset": "0",
+        "master_replid": "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
     }
 
 class RedisDataType:
@@ -165,11 +167,17 @@ class RedisProtocolParser:
             section = args[0]
 
         if section == "replication":
-            resp = [f"{RedisDataType.b_string}{len("role")+len(RedisData.config['role'])+1}", f"role:{RedisData.config['role']}", ""]
+            total_length = 0
+            resp = ""
+            for key, value in RedisData.config.items():
+                total_length+=len(key)+len(value)+1+2
+                resp += f"{key}:{value}\r\n"
+
+            resp=[f"{RedisDataType.b_string}{total_length}", resp, ""]
 
             return self._encode(resp)
 
-
+    
 
     
 '''
