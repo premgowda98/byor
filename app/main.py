@@ -14,9 +14,12 @@ class RedisData:
         "role": "master",
         "master_repl_offset": "0",
         "master_replid": "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
+        "replicas": []
     }
     empty_rdp = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
     sync_enabled=False
+    replica_added=False
+    commands_buffer=[]
 
 class RedisDataType:
     string = "+"
@@ -42,9 +45,10 @@ class RedisCommandLists:
     PSYNC = "PSYNC"
 
 class RedisProtocolParser:
-    def __init__(self, data: str):
+    def __init__(self, data: str, conn_object):
         self.commands = data.split(RedisDataType.delimeter)
         self.len_command = len(self.commands)
+        self.conn_object = conn_object
 
     def _encode(self, vals: list) -> str:
         return RedisDataType.delimeter.join(vals)
@@ -84,7 +88,7 @@ class RedisProtocolParser:
                 return self.info(args)
             
             if command == RedisCommandLists.REPLCONF:
-                return self.okay()
+                return self.repliaconf(args)
             
             if command == RedisCommandLists.PSYNC:
                 return self.sync(args)
@@ -192,6 +196,15 @@ class RedisProtocolParser:
             resp=[f"{RedisDataType.b_string}{total_length}", resp, ""]
 
             return self._encode(resp)
+        
+    def repliaconf(self, args):
+        if args[0]=="listening-port":
+            # storing the connection object of the replica
+            # to comminticate later
+            RedisData.config["replicas"].append(self.conn_object)
+
+        return self.okay()
+
         
     def sync(self, args):
         resp = [f"{RedisDataType.string}FULLRESYNC {RedisData.config['master_replid']} {RedisData.config['master_repl_offset']}", ""]
@@ -355,12 +368,20 @@ def concurrent_request(conn_object, addr):
             print("Client Disconnected")
             break
 
-        rpp = RedisProtocolParser(data.decode())
+        rpp = RedisProtocolParser(data.decode(), conn_object)
         redis_response = rpp.execute()
 
         conn_object.sendall(redis_response.encode())
+
+        if RedisData.replica_added:
+            # sending the command to all the replicas
+            # using previously stored connection object
+            for conn in RedisData.config['replicas']:
+                conn.sendall(data)
+
         if RedisData.sync_enabled:
             RedisData.sync_enabled = False
+            RedisData.replica_added = True
 
             redis_response = rpp.empty_rdb_file()
             conn_object.sendall(redis_response)
@@ -369,7 +390,6 @@ def concurrent_request(conn_object, addr):
         print("Request Processed\n")
 
     conn_object.close()
-
 
 def main(port):
     # You can use print statements as follows for debugging, they'll be visible when running tests.
