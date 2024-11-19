@@ -65,6 +65,7 @@ class RedisProtocolParser:
     def execute(self):
         try:
             command, args = self._decode()
+            self.command = command
             if command == RedisCommandLists.ECHO:
                 return self.echo(args[0])
             
@@ -372,19 +373,21 @@ def concurrent_request(conn_object, addr):
         redis_response = rpp.execute()
 
         conn_object.sendall(redis_response.encode())
-
-        if RedisData.replica_added:
-            # sending the command to all the replicas
-            # using previously stored connection object
-            for conn in RedisData.config['replicas']:
-                conn.sendall(data)
-
+            
         if RedisData.sync_enabled:
             RedisData.sync_enabled = False
             RedisData.replica_added = True
 
             redis_response = rpp.empty_rdb_file()
             conn_object.sendall(redis_response)
+
+        if RedisData.replica_added:
+            # sending the command to all the replicas
+            # using previously stored connection object
+
+            if rpp.command in [RedisCommandLists.SET]:
+                for conn in RedisData.config['replicas']:
+                    conn.sendall(data)
         
             
         print("Request Processed\n")
