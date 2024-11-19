@@ -15,6 +15,8 @@ class RedisData:
         "master_repl_offset": "0",
         "master_replid": "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
     }
+    empty_rdp = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+    sync_enabled=False
 
 class RedisDataType:
     string = "+"
@@ -193,12 +195,14 @@ class RedisProtocolParser:
         
     def sync(self, args):
         resp = [f"{RedisDataType.string}FULLRESYNC {RedisData.config['master_replid']} {RedisData.config['master_repl_offset']}", ""]
-
+        RedisData.sync_enabled=True
         return self._encode(resp)
-
     
+    def empty_rdb_file(self):
+        bytes_data = hex_to_binary(RedisData.empty_rdp)
+        return f"${int(len(bytes_data))}\r\n".encode()+bytes_data
 
-    
+        
 '''
 A byte consists of 8 bits, and each hex digit represents 4 bits. Therefore, two hex digits 
 (two characters) are needed to represent a full byte.
@@ -209,6 +213,11 @@ def hex_to_decimal(hex_val):
     binary_val = bin(integer_val)[2:]
 
     return binary_val
+
+def hex_to_binary(hex_val):
+    bytes_data = bytes.fromhex(hex_val)
+
+    return bytes_data
 
 def hex_to_num(hex_val):
     return int(hex_val, 16)
@@ -350,6 +359,13 @@ def concurrent_request(conn_object, addr):
         redis_response = rpp.execute()
 
         conn_object.sendall(redis_response.encode())
+        if RedisData.sync_enabled:
+            RedisData.sync_enabled = False
+
+            redis_response = rpp.empty_rdb_file()
+            conn_object.sendall(redis_response)
+        
+            
         print("Request Processed\n")
 
     conn_object.close()
