@@ -45,10 +45,14 @@ class RedisCommandLists:
     PSYNC = "PSYNC"
 
 class RedisProtocolParser:
-    def __init__(self, data: str, conn_object):
-        self.commands = data.split(RedisDataType.delimeter)
-        self.len_command = len(self.commands)
-        self.conn_object = conn_object
+    def __init__(self, data: str, conn_object, from_master=False):
+        try:
+            self.from_master = from_master
+            self.commands = data.split(RedisDataType.delimeter)
+            self.len_command = len(self.commands)
+            self.conn_object = conn_object
+        except Exception as e:
+            print("something went wrong", e)
 
     def _encode(self, vals: list) -> str:
         return RedisDataType.delimeter.join(vals)
@@ -139,7 +143,8 @@ class RedisProtocolParser:
         elif ttl_type.upper() == RedisCommandLists.EX:
             threading.Timer(ttl, self.invalidate_key, args=[key]).start()
 
-        return self.okay()
+        if not self.from_master:
+            return self.okay()
     
     def get(self, key):
 
@@ -364,7 +369,7 @@ class RDBParser:
 def concurrent_request(conn_object, addr):
     while True:
         print("\nRecieved Request from addr", addr)
-        data = conn_object.recv(2046)
+        data = conn_object.recv(1024)
         if not data:
             print("Client Disconnected")
             break
@@ -388,15 +393,14 @@ def concurrent_request(conn_object, addr):
             if rpp.command in [RedisCommandLists.SET]:
                 for conn in RedisData.config['replicas']:
                     conn.sendall(data)
-        
-            
-        print("Request Processed\n")
+          
+        print(f"Request Processed for {addr}\n")
 
     conn_object.close()
 
 def main(port):
     # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!")
+    print(f"Started Redis Server on port, {port}")
 
     # Uncomment this to pass the first stage
     #
@@ -404,9 +408,70 @@ def main(port):
 
     while True:
         connection_object, addr = server_socket.accept() # wait for client
-        print("Client", addr, "has connected")
-        print("Waiting for request")
+        print(f"Client {addr} has sent request to redis server {port}")
         threading.Thread(target=concurrent_request, args=[connection_object, addr]).start()
+
+def connect_to_master(port):
+
+    # Connect to the server
+    print(f"Connecting to Redis Master on port {master_port}")
+
+    PING_COMMAND = "*1\r\n$4\r\nPING\r\n"
+    REPLCONF_1=f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${len(str(port))}\r\n{port}\r\n"
+    REPLCONF_2="*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+    PSYNC = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
+
+    all_comands = [PING_COMMAND, REPLCONF_1, REPLCONF_2]
+
+    # Create a socket object (IPv4, TCP)
+    master_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    master_socket.connect((master_ip, int(master_port)))
+    print(f"Connected to Redis Master on port {master_port}")
+
+    print("Sending Sync comands to master")
+    for cat, command in zip(['Ping', 'Repl_1', 'Repl_2'], all_comands):
+        print(f"Sending command {cat}")
+        master_socket.sendall(command.encode())
+        master_response = master_socket.recv(1024)
+        print(f"Recieved resp {master_response}")
+
+    # send PSYNC Command
+    print("Sending Sync Command")
+    master_socket.sendall(PSYNC.encode())
+    while True:
+        master_response = master_socket.recv(1024)
+        print(master_response)
+        if not master_response:
+            print("Master Disconnected")
+            break
+
+        # check if commands are in same buffere data
+        resp_commands = []
+        start_idx = master_response.find(b'*')
+        if start_idx:
+            required_response = master_response[start_idx:]
+            # get all arrays
+            resp_arry = required_response.split(b'*')
+            for resp_command in resp_arry:
+                if not resp_command:
+                    continue
+                resp_commands.append(b'*'+resp_command)
+
+        while resp_commands:
+            try:
+                rpp = RedisProtocolParser(resp_commands.pop().decode(), master_socket, from_master=True)
+                rpp.execute()
+            except Exception as e:
+                split_data = master_response.decode().split('*')[1:]
+
+                for resp in split_data:
+                    rpp = RedisProtocolParser(f'*{resp}', master_socket, from_master=True)
+                    rpp.execute()
+            except Exception as e:
+                print("Could not set values", e)
+            finally:
+                print("Processed data from master")
 
 
 if __name__ == "__main__":
@@ -425,34 +490,14 @@ if __name__ == "__main__":
     port = args.port
     replicaof = args.replicaof
 
+    # start the main redis server
+    threading.Thread(target=main, args=[port]).start()
+
     if dir:
         config.set('default', 'dir', dir)
 
     if db_file:
         config.set('default', 'dbfilename', db_file)
-
-    if replicaof:
-        master_ip, master_port = replicaof.split(" ")
-
-        PING_COMMAND = "*1\r\n$4\r\nPING\r\n"
-        REPLCONF_1=f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${len(str(port))}\r\n{port}\r\n"
-        REPLCONF_2="*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
-        PSYNC = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
-
-        all_comands = [PING_COMMAND, REPLCONF_1, REPLCONF_2, PSYNC]
-
-        # Create a socket object (IPv4, TCP)
-        master_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Connect to the server
-        master_socket.connect((master_ip, int(master_port)))
-
-        for command in all_comands:
-            master_socket.sendall(command.encode())
-            replica_respone = master_socket.recv(2046)
-
-        RedisData.config['role'] = 'slave'
-
 
     if dir and db_file:
         path = Path(dir) / db_file
@@ -481,5 +526,15 @@ if __name__ == "__main__":
                         threading.Timer(in_seconds, RedisProtocolParser.invalidate_key, args=[key]).start()
                     else:
                         del RedisData.data[key]
+    
 
-    main(port)
+    if replicaof:
+        RedisData.config['role'] = 'slave'
+
+        # master connection details
+        master_ip, master_port = replicaof.split(" ")
+
+        threading.Thread(target=connect_to_master, args=[port]).start()
+
+
+ 
