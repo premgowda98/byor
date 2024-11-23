@@ -19,6 +19,7 @@ class RedisData:
     empty_rdp = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
     sync_enabled=False
     replica_added=False
+    data_read_from_master=0
     commands_buffer=[]
 
 class RedisDataType:
@@ -49,6 +50,9 @@ class RedisProtocolParser:
     def __init__(self, data: str, conn_object, from_master=False):
         try:
             self.from_master = from_master
+            self.current_len_data = len(data)
+            if self.from_master:
+                RedisData.data_read_from_master += self.current_len_data
             self.commands = data.split(RedisDataType.delimeter)
             self.len_command = len(self.commands)
             self.conn_object = conn_object
@@ -211,10 +215,11 @@ class RedisProtocolParser:
             RedisData.config["replicas"].append(self.conn_object)
 
         if args[0].upper()=="GETACK":
+            total_data_read = RedisData.data_read_from_master - self.current_len_data
             resp = [f"{RedisDataType.array}3", 
                     f"{RedisDataType.b_string}{len(RedisCommandLists.REPLCONF)}",RedisCommandLists.REPLCONF,
                     f"{RedisDataType.b_string}{len(RedisCommandLists.ACK)}", RedisCommandLists.ACK,
-                    f"{RedisDataType.b_string}{1}", "0", ""
+                    f"{RedisDataType.b_string}{len(str(total_data_read))}", f"{total_data_read}", ""
             ]
 
             resp_to_send = self._encode(resp)
@@ -463,10 +468,17 @@ def connect_to_master(port):
             required_response = master_response[start_idx:]
             # get all arrays
             resp_arry = required_response.split(b'*')
-            for resp_command in resp_arry:
+            add_to_next=b''
+            while resp_arry:
+                resp_command = resp_arry.pop()
+                add_to_next = b'' or add_to_next
                 if not resp_command:
                     continue
-                resp_commands.append(b'*'+resp_command)
+                if resp_command == b'\r\n':
+                    add_to_next = b'*\r\n'
+                    continue
+                resp_commands.append(b'*'+resp_command+add_to_next)
+                add_to_next=b''
 
 
         print(f"executing resp commands {resp_commands}")
