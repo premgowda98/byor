@@ -244,7 +244,7 @@ class RedisProtocolParser:
         return f"${int(len(bytes_data))}\r\n".encode()+bytes_data
     
     def wait(self, args):
-        return self._encode([f"{RedisDataType.integer}0", ""])
+        return self._encode([f"{RedisDataType.integer}{len(RedisData.config["replicas"])}", ""])
 
         
 '''
