@@ -447,7 +447,7 @@ def connect_to_master(port):
         # check if commands are in same buffere data
         resp_commands = []
         start_idx = master_response.find(b'*')
-        if start_idx:
+        if start_idx>=0:
             required_response = master_response[start_idx:]
             # get all arrays
             resp_arry = required_response.split(b'*')
