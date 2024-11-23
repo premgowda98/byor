@@ -14,7 +14,9 @@ class RedisData:
         "role": "master",
         "master_repl_offset": "0",
         "master_replid": "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
-        "replicas": []
+        "replicas_count" : 0,
+        "replicas_details": {},
+        "replicas_ack": {}
     }
     empty_rdp = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
     sync_enabled=False
@@ -217,7 +219,9 @@ class RedisProtocolParser:
         if args[0]=="listening-port":
             # storing the connection object of the replica
             # to comminticate later
-            RedisData.config["replicas"].append(self.conn_object)
+            RedisData.config["replicas_count"] += 1
+            RedisData.config["replicas_details"].update({f"replica-{RedisData.config["replicas_count"]}":self.conn_object})
+            RedisData.config['replicas_ack'].update({f"replica-{RedisData.config["replicas_count"]}": True})
 
         if args[0].upper()=="GETACK":
             total_data_read = RedisData.data_read_from_master - self.current_len_data
@@ -244,7 +248,16 @@ class RedisProtocolParser:
         return f"${int(len(bytes_data))}\r\n".encode()+bytes_data
     
     def wait(self, args):
-        return self._encode([f"{RedisDataType.integer}{len(RedisData.config["replicas"])}", ""])
+        timeout = args[1]
+
+        if int(args[0])<=len([x for x in list(RedisData.config['replicas_ack'].values()) if x]):
+            return self._encode([f"{RedisDataType.integer}{len([x for x in list(RedisData.config['replicas_ack'].values()) if x])}", ""])
+
+        time.sleep(int(timeout)/1000)
+
+        return self._encode([f"{RedisDataType.integer}{len([x for x in list(RedisData.config['replicas_ack'].values()) if x])}", ""])
+        # return self._encode([f"{RedisDataType.integer}{RedisData.config["replicas_count"]}", ""])
+
 
         
 '''
@@ -388,7 +401,28 @@ class RDBParser:
             del temp
         
         return all_keys_data
+    
 
+def handle_replica_data(name, conn_object, data):
+    conn_object.sendall(data)
+    if b'SET' in data:
+        print(f"before set for {name} {RedisData.config['replicas_ack']}")
+        RedisData.config['replicas_ack'].update({name: False})
+        conn_object.sendall(b'*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n')
+        print(f"after set {name} {RedisData.config['replicas_ack']}")   
+
+    replica_response = conn_object.recv(2046)
+    print(f"response from {name} is {replica_response}")
+    if b'ACK' in replica_response:
+        print(f"Before update for {name} {RedisData.config['replicas_ack']}")
+        RedisData.config['replicas_ack'].update({name: True})
+        print(f"After update {name} {RedisData.config['replicas_ack']}")
+
+    if not replica_response:
+        conn_onj = RedisData.config['replicas_details'].get(name, None)
+        RedisData.config['replicas_count']-=1
+        if conn_onj:
+            del RedisData.config['replicas_details'][name]
 
 
 def concurrent_request(conn_object, addr):
@@ -416,8 +450,8 @@ def concurrent_request(conn_object, addr):
             # using previously stored connection object
 
             if rpp.command in [RedisCommandLists.SET]:
-                for conn in RedisData.config['replicas']:
-                    conn.sendall(data)
+                for name, conn in RedisData.config['replicas_details'].items():
+                    threading.Thread(target=handle_replica_data, args=[name, conn, data], name=name).start()
           
         print(f"Request Processed for {addr}\n")
 
@@ -434,7 +468,7 @@ def main(port):
     while True:
         connection_object, addr = server_socket.accept() # wait for client
         print(f"Client {addr} has sent request to redis server {port}")
-        threading.Thread(target=concurrent_request, args=[connection_object, addr]).start()
+        threading.Thread(target=concurrent_request, args=[connection_object, addr], name="handle-client-thread").start()
 
 def connect_to_master(port):
 
@@ -464,7 +498,6 @@ def connect_to_master(port):
     master_socket.sendall(PSYNC.encode())
     while True:
         master_response = master_socket.recv(2046)
-        print(master_response)
         if not master_response:
             print("Master Disconnected")
             break
@@ -517,7 +550,7 @@ if __name__ == "__main__":
     replicaof = args.replicaof
 
     # start the main redis server
-    threading.Thread(target=main, args=[port]).start()
+    threading.Thread(target=main, args=[port], name="Main redis thread").start()
 
     if dir:
         config.set('default', 'dir', dir)
@@ -549,7 +582,7 @@ if __name__ == "__main__":
                         in_seconds = int(unix_time_stamp - time.time())
 
                     if in_seconds > 0 :
-                        threading.Timer(in_seconds, RedisProtocolParser.invalidate_key, args=[key]).start()
+                        threading.Timer(in_seconds, RedisProtocolParser.invalidate_key, args=[key], name=f"key-invalidation-{key}").start()
                     else:
                         del RedisData.data[key]
     
@@ -560,7 +593,7 @@ if __name__ == "__main__":
         # master connection details
         master_ip, master_port = replicaof.split(" ")
 
-        threading.Thread(target=connect_to_master, args=[port]).start()
+        threading.Thread(target=connect_to_master, args=[port], name="slave-thread").start()
 
 
  
