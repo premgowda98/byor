@@ -45,6 +45,7 @@ class RedisCommandLists:
     REPLCONF = "REPLCONF"
     ACK="ACK"
     PSYNC = "PSYNC"
+    WAIT = "WAIT"
 
 class RedisProtocolParser:
     def __init__(self, data: str, conn_object, from_master=False):
@@ -75,6 +76,7 @@ class RedisProtocolParser:
         try:
             command, args = self._decode()
             self.command = command
+
             if command == RedisCommandLists.ECHO:
                 return self.echo(args[0])
             
@@ -102,6 +104,9 @@ class RedisProtocolParser:
             
             if command == RedisCommandLists.PSYNC:
                 return self.sync(args)
+            
+            if command == RedisCommandLists.WAIT:
+                return self.wait(args)
             
         except Exception as e:
             print("Something went wrong", e)
@@ -237,6 +242,9 @@ class RedisProtocolParser:
     def empty_rdb_file(self):
         bytes_data = hex_to_binary(RedisData.empty_rdp)
         return f"${int(len(bytes_data))}\r\n".encode()+bytes_data
+    
+    def wait(self, args):
+        return self._encode([f"{RedisDataType.integer}0", ""])
 
         
 '''
