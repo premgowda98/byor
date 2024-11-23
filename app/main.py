@@ -369,7 +369,7 @@ class RDBParser:
 def concurrent_request(conn_object, addr):
     while True:
         print("\nRecieved Request from addr", addr)
-        data = conn_object.recv(1024)
+        data = conn_object.recv(2046)
         if not data:
             print("Client Disconnected")
             break
@@ -429,18 +429,16 @@ def connect_to_master(port):
     master_socket.connect((master_ip, int(master_port)))
     print(f"Connected to Redis Master on port {master_port}")
 
-    print("Sending Sync comands to master")
     for cat, command in zip(['Ping', 'Repl_1', 'Repl_2'], all_comands):
         print(f"Sending command {cat}")
         master_socket.sendall(command.encode())
-        master_response = master_socket.recv(1024)
-        print(f"Recieved resp {master_response}")
+        master_response = master_socket.recv(2046)
 
     # send PSYNC Command
-    print("Sending Sync Command")
+    print("Sending PSync Command")
     master_socket.sendall(PSYNC.encode())
     while True:
-        master_response = master_socket.recv(1024)
+        master_response = master_socket.recv(2046)
         print(master_response)
         if not master_response:
             print("Master Disconnected")
@@ -458,16 +456,12 @@ def connect_to_master(port):
                     continue
                 resp_commands.append(b'*'+resp_command)
 
+
+        print(f"executing resp commands {resp_commands}")
         while resp_commands:
             try:
                 rpp = RedisProtocolParser(resp_commands.pop().decode(), master_socket, from_master=True)
                 rpp.execute()
-            except Exception as e:
-                split_data = master_response.decode().split('*')[1:]
-
-                for resp in split_data:
-                    rpp = RedisProtocolParser(f'*{resp}', master_socket, from_master=True)
-                    rpp.execute()
             except Exception as e:
                 print("Could not set values", e)
             finally:
