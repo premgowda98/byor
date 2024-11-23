@@ -42,6 +42,7 @@ class RedisCommandLists:
     KEYS = "KEYS"
     INFO = "INFO"
     REPLCONF = "REPLCONF"
+    ACK="ACK"
     PSYNC = "PSYNC"
 
 class RedisProtocolParser:
@@ -208,6 +209,17 @@ class RedisProtocolParser:
             # storing the connection object of the replica
             # to comminticate later
             RedisData.config["replicas"].append(self.conn_object)
+
+        if args[0].upper()=="GETACK":
+            resp = [f"{RedisDataType.array}3", 
+                    f"{RedisDataType.b_string}{len(RedisCommandLists.REPLCONF)}",RedisCommandLists.REPLCONF,
+                    f"{RedisDataType.b_string}{len(RedisCommandLists.ACK)}", RedisCommandLists.ACK,
+                    f"{RedisDataType.b_string}{1}", "0", ""
+            ]
+
+            resp_to_send = self._encode(resp)
+            if self.from_master:
+                self.conn_object.sendall(resp_to_send.encode()) 
 
         return self.okay()
 
