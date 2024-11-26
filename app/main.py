@@ -220,8 +220,8 @@ class RedisProtocolParser:
             # storing the connection object of the replica
             # to comminticate later
             RedisData.config["replicas_count"] += 1
-            RedisData.config["replicas_details"].update({f"replica-{RedisData.config["replicas_count"]}":self.conn_object})
-            RedisData.config['replicas_ack'].update({f"replica-{RedisData.config["replicas_count"]}": True})
+            RedisData.config["replicas_details"].update({f"replica-{RedisData.config['replicas_count']}" : self.conn_object})
+            RedisData.config['replicas_ack'].update({f"replica-{RedisData.config['replicas_count']}": True})
 
         if args[0].upper()=="GETACK":
             total_data_read = RedisData.data_read_from_master - self.current_len_data
@@ -423,6 +423,8 @@ def handle_replica_data(name, conn_object, data):
         RedisData.config['replicas_count']-=1
         if conn_onj:
             del RedisData.config['replicas_details'][name]
+
+    
 
 
 def concurrent_request(conn_object, addr):

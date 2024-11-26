@@ -1,60 +1,88 @@
-[![progress-banner](https://backend.codecrafters.io/progress/redis/02fef366-16cd-423c-b967-46840e2dc95e)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# BYOR - Custom Redis Implementation (Codecrafters Challenge)
 
-This is a starting point for Python solutions to the
-["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
+This is a custom Redis implementation built as part of the [Codecrafters Redis Challenge](https://codecrafters.io/challenges/redis). The goal of this project is to develop a simplified version of Redis that supports basic Redis commands, including string manipulation and simple interactions with the RDB file. It is packaged as a Docker container for easy use.
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+## Features
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+Currently, this implementation supports the following features:
+- **PING**: Responds with `PONG` to check if the server is alive.
+- **ECHO**: Echoes back the message sent by the client.
+- **SET**: Allows setting a key-value pair in the database (currently only supports strings).
+- **GET**: Retrieves the value for a given key.
+- **RDB file reading**: Supports reading data from an RDB file (Redis Database file).
+- **Master-Slave Connection**: Implements basic master-slave replication with a simple handshake and command propagation to clients.
 
-# Passing the first stage
+### Supported Data Types
+- **Strings**: The only data type currently supported.
 
-The entry point for your Redis implementation is in `app/main.py`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+### Planned Features
+- **Sets**: Support for sets will be added soon.
+- **Hashes/Dicts**: Plans to implement support for dictionaries are underway.
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+## Getting Started
+
+Follow these steps to build and run your own instance of My Redis:
+
+### Prerequisites
+
+- **Docker**: You need to have Docker installed on your system to build and run the container. You can install Docker by following the official guide: [Docker Installation](https://docs.docker.com/get-docker/).
+
+### Building the Docker Image
+
+To build the Docker image for this project, use the following command:
+
+```bash
+docker build -t my-redis .
 ```
 
-That's all!
+This will create the Docker image with the tag `my-redis`.
 
-# Stage 2 & beyond
+### Running the Redis Server in a Docker Container
 
-Note: This section is for stages 2 and beyond.
+Once the image is built, you can run the Redis server in a Docker container using the following command:
 
-1. Ensure you have `python (3.x)` installed locally
-1. Run `./your_program.sh` to run your Redis server, which is implemented in
-   `app/main.py`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
-
-# Troubleshooting
-
-## module `socket` has no attribute `create_server`
-
-When running your server locally, you might see an error like this:
-
-```
-Traceback (most recent call last):
-  File "/.../python3.7/runpy.py", line 193, in _run_module_as_main
-    "__main__", mod_spec)
-  File "/.../python3.7/runpy.py", line 85, in _run_code
-    exec(code, run_globals)
-  File "/app/app/main.py", line 11, in <module>
-    main()
-  File "/app/app/main.py", line 6, in main
-    s = socket.create_server(("localhost", 6379), reuse_port=True)
-AttributeError: module 'socket' has no attribute 'create_server'
+```bash
+docker run --rm --net=host my-redis
 ```
 
-This is because `socket.create_server` was introduced in Python 3.8, and you
-might be running an older version.
+This will start the Redis server, allowing you to connect to it using the `redis-cli`.
 
-You can fix this by installing Python 3.8 locally and using that.
+### Connecting with `redis-cli`
 
-If you'd like to use a different version of Python, change the `language_pack`
-value in `codecrafters.yml`.
+After the Redis server is running, you can use the `redis-cli` to interact with it. For example, to set and get a value, you can do:
+
+```bash
+redis-cli
+```
+
+Then, you can issue commands like:
+
+```bash
+SET age 35
+GET age
+```
+
+The Redis server will respond accordingly, for example:
+
+```
+OK
+35
+```
+
+### Master-Slave Replication (Optional)
+
+The server supports basic master-slave replication. You can connect multiple clients, and commands will be propagated to all connected clients automatically.
+
+## Project Structure
+
+Since the Codecrafters challenge requires the code to run in a single file, the current implementation is not yet organized into multiple folders. However, the code is modularized as much as possible within the constraints of this challenge.
+
+## Limitations
+
+- **Data Types**: Currently, only strings are supported. Sets, hashes, and other data types will be added in the future.
+- **Persistence**: While the server can read from an RDB file, full persistence features like writing to an RDB file and AOF are not yet implemented.
+- **Security**: The implementation does not include advanced security features like authentication or encryption.
+  
+## Contributing
+
+Feel free to fork this project, report bugs, or submit pull requests for improvements. Contributions are welcome!
